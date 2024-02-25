@@ -4,12 +4,12 @@ from flask_login import UserMixin,login_manager,login_user,logout_user,login_req
 # from flask_wtf import wtforms this is removed by new update now its FlaskForm
 from flask_wtf import FlaskForm
 from wtforms import StringField,PasswordField,SubmitField
-from wtforms.validators import input_required,ValidationError,Length
+from wtforms.validators import input_required,ValidationError,Length,Email
 from flask_bcrypt import Bcrypt
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///auth.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = 'secretkey'
 
@@ -28,31 +28,36 @@ def load_user(user_id):
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), nullable=False,unique=True)
+    email = db.Column(db.String(540), nullable=False, unique=True)
     password = db.Column(db.String(80), nullable=False)
 
 class RegisterForm(FlaskForm):
-    username=StringField(validators=[input_required(),Length(min=4,max=20)],render_kw={"placeholder":"username"})
+    username = StringField(validators=[input_required(), Length(min=4, max=20)], render_kw={"placeholder": "Username"})
+    email = StringField(validators=[input_required(), Email(), Length(min=7, max=50)], render_kw={"placeholder": "Email"})
+    password = PasswordField(validators=[input_required(), Length(min=4, max=20)], render_kw={"placeholder": "Password"})
+    submit = SubmitField("Register")
 
-    password=PasswordField(validators=[input_required(), Length(min=4,max=20)],render_kw={"placeholder":"password"})
-
-    submit=SubmitField("register")
-    # print(f"Username: {username}") ignore, used for debugging
-    # print(f"Hashed Password: {hashed_password}")
-
-#username validatiom
-    def validate_username(self,username):
-        existing_user_username=User.query.filter_by(username=username.data).first()
-
+    def validate_username(self, username):
+        existing_user_username = User.query.filter_by(username=username.data).first()
         if existing_user_username:
             raise ValidationError("The username already exists, please choose a different one")
-    
+
+    def validate_email(self, email):
+        existing_user_email = User.query.filter_by(email=email.data).first()
+        if existing_user_email:
+            raise ValidationError("The email already exists, please choose a different one")
 
 class LoginForm(FlaskForm):
-    username=StringField(validators=[input_required(),Length(min=4,max=20)],render_kw={"placeholder":"username"})
+    usermail = StringField(validators=[input_required(), Length(min=4, max=20)], render_kw={"placeholder": "username or email"})
+    password = PasswordField(validators=[input_required(), Length(min=4, max=20)], render_kw={"placeholder": "password"})
+    submit = SubmitField("Login")
 
-    password=PasswordField(validators=[input_required(), Length(min=4,max=20)],render_kw={"placeholder":"password"})
+    def validate_usermail(self, usermail):
+        user = User.query.filter((User.username == usermail.data) | (User.email == usermail.data)).first()
 
-    submit=SubmitField("Login")
+        if not user or not bcrypt.check_password_hash(user.password, self.password.data):
+            raise ValidationError("Invalid username, email, or password")
+
 
 with app.app_context():
     db.create_all()
@@ -63,17 +68,16 @@ def home():
 
 
 #user login
-@app.route('/login',methods=['GET','POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    form=LoginForm()
+    form = LoginForm()
     if form.validate_on_submit():
-        user=User.query.filter_by(username=form.username.data).first()
-        if user:
-            if bcrypt.check_password_hash(user.password,form.password.data):
-                login_user(user)
-                return redirect(url_for('dashboard'))
-    return render_template('login.html',form=form)
+        user = User.query.filter((User.username == form.usermail.data) | (User.email == form.usermail.data)).first()
+        if user and bcrypt.check_password_hash(user.password, form.password.data):
+            login_user(user)
+            return redirect(url_for('dashboard'))
 
+    return render_template('login.html', form=form)
 
 
 #dashboard after user succesfully logged in
@@ -84,18 +88,18 @@ def dashboard():
 
 #default page
 @app.route('/register', methods=['GET', 'POST'])
-def register():
+def register_user():
     form = RegisterForm()
-
     if form.validate_on_submit():
         hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
-        new_user = User(username=form.username.data, password=hashed_password)
-        # print(f"Username: {form.username}")
-        # print(f"Hashed Password: {hashed_password}")
+        new_user = User(username=form.username.data, email=form.email.data, password=hashed_password)
         db.session.add(new_user)
         db.session.commit()
-        # return redirect('/register')  # You can redirect to a registration error page or the same registration page
-        return redirect('/login')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+
+    # Print form validation errors to diagnose the issue
+    print(form.errors)
 
     return render_template('register.html', form=form)
 

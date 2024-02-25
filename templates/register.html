@@ -64,10 +64,13 @@
 <body>
     <div class="container">
     <h2>Register Page</h2>
-    <form method="POST" action="{{ url_for('register') }}">
+    <form method="POST" action="{{ url_for('register_user') }}">
         {{ form.hidden_tag() }}
         <label for="username">Username:</label>
         {{ form.username() }}
+        <br>
+        <label for="email">email:</label>
+        {{ form.email() }}
         <br>
         <label for="password">Password:</label>
         {{ form.password() }}

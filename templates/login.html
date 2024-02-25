@@ -65,11 +65,11 @@
     <h2>login page</h2>
     <form method="POST">
         {{form.hidden_tag()}}
-        {{form.username}}
+        {{form.usermail}}
         {{form.password}}
         {{form.submit}}
     </form>
-    <a href="{{url_for('register')}}">Dont have an account? Signup</a>
+    <a href="{{url_for('register_user')}}">Dont have an account? Signup</a>
 </div>
 </body>
 </html>
